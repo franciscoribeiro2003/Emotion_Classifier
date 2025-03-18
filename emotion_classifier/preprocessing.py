@@ -12,7 +12,7 @@ nltk.download('stopwords', quiet=True)
 nltk.download('wordnet', quiet=True)
 
 
-def clean_text(text, lower=True, remove_punctuation=True, remove_digits=True):
+def clean_text(text, lower=True, remove_punctuation=True, remove_emoji=True, remove_digits=True):
     """Basic text cleaning."""
     if not isinstance(text, str):
         return ""
@@ -24,6 +24,10 @@ def clean_text(text, lower=True, remove_punctuation=True, remove_digits=True):
     # Remove punctuation if specified
     if remove_punctuation:
         text = text.translate(str.maketrans('', '', string.punctuation))
+
+    # Remove Emojis
+    if remove_emoji:
+        text = text.encode('ascii', 'ignore').decode('ascii')
     
     # Remove digits if specified
     if remove_digits:
