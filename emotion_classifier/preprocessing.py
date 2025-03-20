@@ -91,3 +91,14 @@ def preprocess_text(
         tokens = lemmatize_tokens(tokens)
     
     return tokens
+
+def preprocess_and_replace(text):
+    return ' '.join(preprocess_text(
+        text, 
+        lower=True, 
+        remove_punct=True, 
+        remove_digits=True,
+        remove_stops=True,
+        stemming=True,  # Apply stemming
+        lemmatization=False  # Ensure lemmatization is off
+    ))
