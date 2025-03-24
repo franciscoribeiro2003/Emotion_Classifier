@@ -171,4 +171,5 @@ cython_debug/
 .pypirc
 
 # ignore the lexicons
-data/lexicons/
+data/lexicons
+data/processed/datasets.pkl
