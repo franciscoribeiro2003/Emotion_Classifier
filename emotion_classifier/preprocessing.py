@@ -12,7 +12,7 @@ nltk.download('stopwords', quiet=True)
 nltk.download('wordnet', quiet=True)
 
 
-def clean_text(text, lower=True, remove_punctuation=True, remove_emoji=True, remove_digits=True):
+def clean_text(text, lower=True, decontract=True, remove_punctuation=True, remove_emoji=True, remove_digits=True):
     """Basic text cleaning."""
     if not isinstance(text, str):
         return ""
@@ -20,6 +20,9 @@ def clean_text(text, lower=True, remove_punctuation=True, remove_emoji=True, rem
     # Convert to lowercase if specified
     if lower:
         text = text.lower()
+
+    if decontract:
+        text = decontracted(text)
     
     # Remove punctuation if specified
     if remove_punctuation:
@@ -60,10 +63,20 @@ def lemmatize_tokens(tokens):
     lemmatizer = WordNetLemmatizer()
     return [lemmatizer.lemmatize(token) for token in tokens]
 
+def decontracted(text):
+    text = re.sub(r"’m|\'m", " am", text)
+    text = re.sub(r"’ve|\'ve", " have", text)
+    text = re.sub(r"’re|\'re", " are", text)
+    text = re.sub(r"’s|\'s", " is", text)
+    text = re.sub(r"’d|\'d", " would", text)
+    text = re.sub(r"’ll|\'ll", " will", text)
+    text = re.sub(r"’t|\'t", " not", text)
+    return text
 
 def preprocess_text(
     text, 
     lower=True, 
+    decontract=True,
     remove_punct=True,
     remove_digits=True,
     remove_stops=True,
