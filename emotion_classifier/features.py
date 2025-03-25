@@ -6,6 +6,7 @@ import requests
 import numpy as np
 import numpy as np
 import ast
+from sklearn.preprocessing import OneHotEncoder
 
 from emotion_classifier.config import (
     NRC_LEXICON_URL,
@@ -105,200 +106,36 @@ def extract_lexicon_features(texts, lexicons):
     return features
 
 
-def create_sentiment_probability_mapping(df, categorical_col, sentiment_col='sentiment'):
+def combine_categorical_features(df, columns_to_combine):
     """
-    Create a probability distribution mapping from a categorical column to sentiment.
+    Combine categorical text columns into a single text field.
     
     Args:
-        df (DataFrame): The DataFrame containing the data
-        categorical_col (str): Name of the categorical column to map
-        sentiment_col (str): Name of the sentiment column (default: 'sentiment')
+        df (DataFrame): DataFrame containing categorical columns
+        columns_to_combine (list): List of column names to combine
         
     Returns:
-        DataFrame: Normalized probability distribution showing relationship between
-                  the categorical column values and sentiment classes
+        list: Combined text strings for each row
     """
-    # Group by categorical column and sentiment to count occurrences
-    counts = df.groupby([categorical_col, sentiment_col]).size().reset_index(name='count')
+    combined_texts = []
     
-    # Pivot the data
-    pivot = counts.pivot_table(index=categorical_col, 
-                               columns=sentiment_col, 
-                               values='count', 
-                               fill_value=0)
-    
-    # Normalize the pivot table by rows
-    normalized = pivot.div(pivot.sum(axis=1), axis=0)
-    
-    return normalized
-
-
-def map_categorical_to_numeric(df, column, probability_map, sentiment_mapping, default_value=0.5):
-    """
-    Transform categorical values to numeric based on their probabilistic relationship with sentiment.
-    
-    Args:
-        df (DataFrame or Series): Data containing the categorical column
-        column (str): Name of the categorical column to transform
-        probability_map (DataFrame): Probability distribution from create_sentiment_probability_mapping
-        sentiment_mapping (dict): Mapping from sentiment categories to numeric values
-        default_value (float): Default value for categories not in the probability map
+    for _, row in df.iterrows():
+        combined_parts = []
         
-    Returns:
-        list: Numerical values corresponding to the categorical values
-    """
-    result = []
-    
-    for value in df[column]:
-        if value in probability_map.index:
-            # Get probability distribution for this categorical value
-            probabilities = probability_map.loc[value].values
-            sentiment_categories = probability_map.columns
-            
-            # Compute cumulative probability intervals
-            cumulative_probs = np.cumsum(probabilities)
-            random_value = np.random.rand()
-            
-            # Find the corresponding sentiment based on probability distribution
-            selected_sentiment = sentiment_categories[np.searchsorted(cumulative_probs, random_value)]
-            result.append(sentiment_mapping[selected_sentiment])
-        else:
-            # Default to neutral if value is not in our probability table
-            result.append(default_value)
-    
-    return result
-
-
-def transform_primary_emotion(df, probability_map, sentiment_mapping):
-    """
-    Transform primary_emotion categorical values to numeric values.
-    
-    Args:
-        df (DataFrame): DataFrame containing primary_emotion column
-        probability_map (DataFrame): Probability distribution from create_sentiment_probability_mapping
-        sentiment_mapping (dict): Mapping from sentiment categories to numeric values
+        for col in columns_to_combine:
+            if col in row and row[col] is not None:
+                # Handle different data types appropriately
+                if isinstance(row[col], list):
+                    # Join list items with spaces
+                    combined_parts.append(' '.join(str(item) for item in row[col]))
+                else:
+                    # Just add the string value
+                    combined_parts.append(str(row[col]))
         
-    Returns:
-        list: Numeric values for the primary_emotion column
-    """
-    return map_categorical_to_numeric(df, 'primary_emotion', probability_map, sentiment_mapping)
-
-
-def transform_interaction_style(df, probability_map, sentiment_mapping):
-    """
-    Transform interaction_style categorical values to numeric values.
+        # Join all parts with spaces
+        combined_texts.append(' '.join(combined_parts))
     
-    Args:
-        df (DataFrame): DataFrame containing interaction_style column
-        probability_map (DataFrame): Probability distribution from create_sentiment_probability_mapping
-        sentiment_mapping (dict): Mapping from sentiment categories to numeric values
-        
-    Returns:
-        list: Numeric values for the interaction_style column
-    """
-    return map_categorical_to_numeric(df, 'interaction_style', probability_map, sentiment_mapping)
-
-
-def transform_context(df, probability_map, sentiment_mapping):
-    """
-    Transform context categorical values to numeric values.
-    
-    Args:
-        df (DataFrame): DataFrame containing context column
-        probability_map (DataFrame): Probability distribution from create_sentiment_probability_mapping
-        sentiment_mapping (dict): Mapping from sentiment categories to numeric values
-        
-    Returns:
-        list: Numeric values for the context column
-    """
-    return map_categorical_to_numeric(df, 'context', probability_map, sentiment_mapping)
-
-
-def transform_secondary_emotions(df, probability_map, sentiment_mapping):
-    """
-    Transform secondary_emotions lists to numeric values based on their 
-    probabilistic relationship with sentiment.
-
-    This function is more developed because the secondary_emotions column contains pairs of emotions,
-    so it is needed to calculate the average probability of each pair and then
-    select a sentiment based on that probability distribution.
-
-    
-    Args:
-        df (DataFrame): DataFrame containing secondary_emotions column
-        probability_map (DataFrame): Probability distribution for individual emotions
-        sentiment_mapping (dict): Mapping from sentiment categories to numeric values
-        
-    Returns:
-        list: Numeric values representing the secondary_emotions
-    """
-    result = []
-    
-    for emotions in df['secondary_emotions']:
-        # Handle different formats of secondary_emotions
-        if isinstance(emotions, list) and len(emotions) == 2:
-            emotion_str = [str(e) for e in emotions]
-        else:
-            emotions_str = str(emotions).strip("[]").split(', ')
-            emotion_str = [e.strip("'") for e in emotions_str]
-        
-        if len(emotion_str) == 2:
-            # Get probabilities for each emotion
-            probs1 = probability_map.loc[emotion_str[0]].values if emotion_str[0] in probability_map.index else np.array([0.2]*5)
-            probs2 = probability_map.loc[emotion_str[1]].values if emotion_str[1] in probability_map.index else np.array([0.2]*5)
-            
-            # Average the probabilities
-            avg_probs = (probs1 + probs2) / 2
-            sentiment_categories = probability_map.columns
-            
-            # Select sentiment based on probability distribution
-            cumulative_probs = np.cumsum(avg_probs)
-            random_value = np.random.rand()
-            
-            selected_sentiment = sentiment_categories[np.searchsorted(cumulative_probs, random_value)]
-            result.append(sentiment_mapping[selected_sentiment])
-        else:
-            result.append(0.5)  # Default to neutral if pair isn't recognized
-    
-    return result
-
-
-def prepare_secondary_emotions_mapping(train_df):
-    """
-    Prepare probability mapping for secondary emotions.
-    
-    Args:
-        train_df (DataFrame): Training DataFrame with secondary_emotions and sentiment columns
-        
-    Returns:
-        DataFrame: Normalized probability distribution for secondary emotions
-    """
-    # Ensure secondary_emotions are properly formatted
-    train_df = train_df.copy()
-    train_df['secondary_emotions'] = train_df['secondary_emotions'].apply(
-        lambda x: ast.literal_eval(x) if isinstance(x, str) else x
-    )
-    
-    # Explode secondary_emotions for analysis
-    train_exploded = train_df.assign(
-        secondary_emotion=train_df['secondary_emotions'].astype(str).str.strip("[]").str.split(', ')
-    )
-    train_exploded = train_exploded.explode('secondary_emotion')
-    
-    # Clean up the secondary_emotion column
-    train_exploded['secondary_emotion'] = train_exploded['secondary_emotion'].str.strip("'")
-    
-    # Create the probability mapping
-    sec_emotion_counts = train_exploded.groupby(['secondary_emotion', 'sentiment']).size().reset_index(name='count')
-    sec_emotion_pivot = sec_emotion_counts.pivot_table(
-        index='secondary_emotion', 
-        columns='sentiment', 
-        values='count', 
-        fill_value=0
-    )
-    sec_emotion_normalized = sec_emotion_pivot.div(sec_emotion_pivot.sum(axis=1), axis=0)
-    
-    return sec_emotion_normalized
+    return combined_texts
 
 
 def normalize_intensity(df, max_value=10):
@@ -314,3 +151,78 @@ def normalize_intensity(df, max_value=10):
     """
     return df['intensity'] / max_value
 
+
+def create_one_hot_features(df, categorical_columns):
+    """
+    Create one-hot encoded features for categorical columns.
+    
+    Args:
+        df (DataFrame): DataFrame containing categorical columns
+        categorical_columns (list): List of column names to encode
+        
+    Returns:
+        tuple: (encoded_features, encoder) where encoded_features is a sparse matrix
+               and encoder is the fitted OneHotEncoder
+    """
+    # Handle list columns (like secondary_emotions)
+    df_processed = df.copy()
+    for col in categorical_columns:
+        if col in df.columns:
+            # Convert lists to strings for one-hot encoding
+            if df[col].apply(lambda x: isinstance(x, list)).any():
+                df_processed[col] = df[col].apply(lambda x: str(x) if isinstance(x, list) else x)
+    
+    # Create and fit the encoder
+    encoder = OneHotEncoder(sparse_output=True, handle_unknown='ignore')
+    encoded_features = encoder.fit_transform(df_processed[categorical_columns])
+    
+    return encoded_features, encoder
+
+
+def apply_one_hot_encoding(df, encoder, categorical_columns):
+    """
+    Apply a fitted one-hot encoder to new data.
+    
+    Args:
+        df (DataFrame): DataFrame containing categorical columns
+        encoder (OneHotEncoder): Fitted OneHotEncoder
+        categorical_columns (list): List of column names to encode
+        
+    Returns:
+        sparse matrix: One-hot encoded features
+    """
+    # Handle list columns (like secondary_emotions)
+    df_processed = df.copy()
+    for col in categorical_columns:
+        if col in df.columns:
+            # Convert lists to strings for one-hot encoding
+            if df[col].apply(lambda x: isinstance(x, list)).any():
+                df_processed[col] = df[col].apply(lambda x: str(x) if isinstance(x, list) else x)
+    
+    return encoder.transform(df_processed[categorical_columns])
+
+def encode_secondary_emotions(df, all_emotions):
+    """Create a multi-hot encoding for secondary emotions."""
+    # Initialize matrix with zeros
+    encoded = np.zeros((len(df), len(all_emotions)))
+    
+    # Map emotions to indices
+    emotion_to_idx = {emotion: i for i, emotion in enumerate(all_emotions)}
+    
+    # Fill in the matrix
+    for i, emotions in enumerate(df['secondary_emotions']):
+        if isinstance(emotions, list):
+            for emotion in emotions:
+                if emotion in emotion_to_idx:
+                    encoded[i, emotion_to_idx[emotion]] = 1
+        elif isinstance(emotions, str) and emotions.startswith('['):
+            # Handle string representations of lists
+            try:
+                emotion_list = ast.literal_eval(emotions)
+                for emotion in emotion_list:
+                    if emotion in emotion_to_idx:
+                        encoded[i, emotion_to_idx[emotion]] = 1
+            except:
+                pass
+                
+    return encoded
