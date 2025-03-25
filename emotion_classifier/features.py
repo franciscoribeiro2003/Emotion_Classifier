@@ -11,7 +11,6 @@ from emotion_classifier.config import (
     NRC_LEXICON_URL,
     NRC_PATH
 )
-from emotion_classifier.preprocessing import preprocess_text
 
 
 def load_nrc_emotion_lexicon():
@@ -300,74 +299,6 @@ def prepare_secondary_emotions_mapping(train_df):
     sec_emotion_normalized = sec_emotion_pivot.div(sec_emotion_pivot.sum(axis=1), axis=0)
     
     return sec_emotion_normalized
-
-def transform_meta_emotions(df, probability_map, sentiment_mapping):
-    """
-    Transform meta_emotions tuple to numeric values based on their 
-    probabilistic relationship with sentiment.
-
-    This function is more developed because the meta_emotions column consist in a string of 
-    singles or pairs of descriptions of emotions, so it is needed to calculate the average probability
-    of each group of emotions and then select a sentiment based on that probability distribution.
-    
-    Args:
-        df (DataFrame): DataFrame containing meta_emotions column
-        probability_map (DataFrame): Probability distribution for individual emotions
-        sentiment_mapping (dict): Mapping from sentiment categories to numeric values
-        
-    Returns:
-        list: Numeric values representing the meta_emotions
-    """
-    result = []
-    
-    for emotions in df['meta_emotions']:
-        if isinstance(emotions, tuple):
-            probs1 = probability_map.loc[emotions].values if emotions in probability_map.index else np.array([0.2]*5)
-            avg_probs = probs1  # Average probability
-            sentiment_categories = probability_map.columns
-            
-            cumulative_probs = np.cumsum(avg_probs)
-            random_value = np.random.rand()
-            
-            selected_sentiment = sentiment_categories[np.searchsorted(cumulative_probs, random_value)]
-            result.append(sentiment_mapping[selected_sentiment])
-        else:
-            result.append(0.5)  # Default to neutral if group isn't recognized
-    
-    return result
-
-
-def prepare_meta_emotions_mapping(train_df):
-    """
-    Prepare probability mapping for meta emotions.
-    
-    Args:
-        train_df (DataFrame): Training DataFrame with meta_emotions and sentiment columns
-    
-    Returns:
-        DataFrame: Normalized probability distribution for meta emotions
-    """
-    # Process meta_emotion column from strings to a list of preprocessed descriptions of emotions
-    train_df['meta_emotions'] = train_df['meta_emotions'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
-    train_df['meta_emotions'] = train_df['meta_emotions'].apply(lambda x: [preprocess_text(emotion) for emotion in x] if isinstance(x, list) else x)
-
-    # Flatten the list of lists and sort the emotions into tuple to simplify comparison
-    train_df['meta_emotions'] = train_df['meta_emotions'].apply(lambda x: [item for sublist in x for item in (sublist if isinstance(sublist, list) else [sublist])])
-    train_df['meta_emotions'] = train_df['meta_emotions'].apply(lambda x: tuple(sorted(x)) if isinstance(x, list) else x)
-
-    # Explode groups into individual emotions for probability analysis
-    train_df_exploded = train_df.assign(meta_emotion=train_df['meta_emotions'])
-    train_df_exploded = train_df_exploded.explode('meta_emotions')
-
-    # Compute sentiment probability distribution for individual meta emotions
-    meta_emotion_sentiment_counts = train_df_exploded.groupby(['meta_emotions', 'sentiment']).size().reset_index(name='count')
-    meta_emotion_sentiment_pivot = meta_emotion_sentiment_counts.pivot_table(index='meta_emotions', 
-                                                                            columns='sentiment', 
-                                                                            values='count', 
-                                                                            fill_value=0)
-    meta_emotion_sentiment_normalized = meta_emotion_sentiment_pivot.div(meta_emotion_sentiment_pivot.sum(axis=1), axis=0)
-
-    return meta_emotion_sentiment_normalized
 
 
 def normalize_intensity(df, max_value=10):
