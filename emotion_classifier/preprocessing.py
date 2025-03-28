@@ -64,13 +64,13 @@ def lemmatize_tokens(tokens):
     return [lemmatizer.lemmatize(token) for token in tokens]
 
 def decontracted(text):
-    text = re.sub(r"’m|\'m", " am", text)
-    text = re.sub(r"’ve|\'ve", " have", text)
-    text = re.sub(r"’re|\'re", " are", text)
-    text = re.sub(r"’s|\'s", " is", text)
-    text = re.sub(r"’d|\'d", " would", text)
-    text = re.sub(r"’ll|\'ll", " will", text)
-    text = re.sub(r"’t|\'t", " not", text)
+    text = re.sub(r"\b(’m|\'m)\b", " am", text)
+    text = re.sub(r"\b(’ve|\'ve)\b", " have", text)
+    text = re.sub(r"\b(’re|\'re)\b", " are", text)
+    text = re.sub(r"\b(’s|\'s)\b", " is", text)
+    text = re.sub(r"\b(’d|\'d)\b", " would", text)
+    text = re.sub(r"\b(’ll|\'ll)\b", " will", text)
+    text = re.sub(r"\b(’t|\'t)\b", " not", text)
     return text
 
 def preprocess_text(
