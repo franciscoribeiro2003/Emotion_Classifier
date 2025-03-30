@@ -173,3 +173,6 @@ cython_debug/
 # ignore the lexicons
 data/lexicons
 data/processed/datasets.pkl
+
+# ignore the model
+models/
