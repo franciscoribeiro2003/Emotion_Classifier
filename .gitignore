@@ -176,3 +176,6 @@ data/processed/datasets.pkl
 
 # ignore the model
 models/
+
+# Ignore the model checkpoints
+notebooks/results/
