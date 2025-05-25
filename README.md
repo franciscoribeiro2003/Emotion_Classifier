@@ -52,7 +52,7 @@ Citation:
 2. Install required packages: `pip install -r requirements.txt`
 
 ### Running or analyse the results
-Run/See the notebooks in order (01 → 02 → 03) to reproduce the analysis and results
+Run/See the notebooks in order (01 → 02 → 03 → 04 → 05 → 06) to reproduce the analysis and results
 
 ### Test Text-Only Emotion Classifier - Fun Feature
 
